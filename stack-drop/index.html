@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stack Drop</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1>Stack Drop</h1>
+
+    <div class="game">
+      <div class="board-wrap">
+        <canvas id="board" width="300" height="600"></canvas>
+        <div id="overlay" class="overlay hidden">
+          <div id="overlayText">Press Start</div>
+        </div>
+      </div>
+
+      <div class="sidebar">
+        <div class="panel">
+          <h2>Next</h2>
+          <canvas id="next" width="120" height="120"></canvas>
+        </div>
+
+        <div class="panel">
+          <h2>Score</h2>
+          <div id="score" class="stat">0</div>
+        </div>
+
+        <div class="panel">
+          <h2>Lines</h2>
+          <div id="lines" class="stat">0</div>
+        </div>
+
+        <div class="panel">
+          <h2>Level</h2>
+          <div id="level" class="stat">1</div>
+        </div>
+
+        <button id="startBtn">Start</button>
+
+        <div class="controls">
+          <p>&larr; &rarr; move</p>
+          <p>&uarr; rotate</p>
+          <p>&darr; soft drop</p>
+          <p>space hard drop</p>
+          <p>p pause</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
