@@ -28,6 +28,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export interface QrPaymentIntent {
+  id: string;
+  merchantId: string;
+  amountMinor: number;
+  reference: string;
+  status: "OPEN" | "CONSUMED" | "EXPIRED";
+  expiresAt: string;
+}
+
 export const api = {
   login: (input: LoginInput) => request<{ accessToken: string }>("/v1/auth/login", {
     method: "POST",
@@ -41,6 +50,7 @@ export const api = {
   transactions: () => request("/v1/transactions"),
   loyaltyBalance: () => request<{ points: number; unit: string }>("/v1/loyalty/balance"),
   loyaltyLedger: () => request("/v1/loyalty/ledger"),
+  qrIntent: (id: string) => request<QrPaymentIntent>(`/v1/qr/payment-intents/${id}`),
   pay: (input: { merchantId: string; amountMinor: number; reference: string; intentId?: string }, idempotencyKey: string) =>
     request("/v1/payments", {
       method: "POST",

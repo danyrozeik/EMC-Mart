@@ -179,13 +179,20 @@ development and demos only. Before any real transaction can occur:
 - Redis is configured (`REDIS_URL`) but not yet wired into a queue/outbox consumer — the "outbox/event
   pattern for transaction and loyalty events" from the brief is not implemented; today, loyalty earning
   happens synchronously and idempotently inside the payment request instead of via an event bus.
-- Mobile QR scanning is a UI placeholder (no `expo-camera`/barcode integration wired yet).
 - No CI pipeline (GitHub Actions, etc.) is configured yet.
+- Mobile has no login screen wired into `App.tsx` yet — `api.setAccessToken()` exists but nothing calls
+  it, so `Pay`/`Activity` screens will hit `401` until a login flow is added (see next task).
+
+Mobile QR scanning is implemented: the Pay screen (`apps/mobile/src/screens/PayScreen.tsx`) uses
+`expo-camera`'s `CameraView` to scan a QR code encoding a raw `qrPaymentIntentId`, fetches
+`GET /v1/qr/payment-intents/:id` to preview the amount, and on confirmation calls `POST /v1/payments`
+with an `expo-crypto`-generated UUID as the `Idempotency-Key`.
 
 ## Next recommended implementation task
 
-Wire the mobile Pay screen to `expo-camera` + a barcode scanner, decode a QR payload down to a
-`qrPaymentIntentId`, call `GET /v1/qr/payment-intents/:id` to preview the amount, then confirm via
-`POST /v1/payments` with a client-generated UUID as the `Idempotency-Key`. In parallel, replace the
-synchronous loyalty-earn call in `PaymentsService.executePayment` with an outbox row + worker, per the
-brief's event-pattern requirement, so payment completion and loyalty crediting are decoupled.
+Add a mobile login/register screen that calls `api.login`/`api.register` and feeds the returned
+`accessToken` into `api.setAccessToken()` (persisted via `expo-secure-store`, not `AsyncStorage`, since
+it's a bearer credential) before the tab navigator mounts — today `PayScreen`/`ActivityScreen` assume an
+authenticated session that nothing yet establishes. In parallel, replace the synchronous loyalty-earn
+call in `PaymentsService.executePayment` with an outbox row + worker, per the brief's event-pattern
+requirement, so payment completion and loyalty crediting are decoupled.

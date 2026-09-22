@@ -9,11 +9,23 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "example.rti.mobile"
+      "bundleIdentifier": "example.rti.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "RTI uses the camera to scan merchant Scan & Pay QR codes."
+      }
     },
     "android": {
-      "package": "example.rti.mobile"
+      "package": "example.rti.mobile",
+      "permissions": ["CAMERA"]
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "RTI uses the camera to scan merchant Scan & Pay QR codes."
+        }
+      ]
+    ],
     "extra": {
       "apiBaseUrl": "http://localhost:3001"
     }
