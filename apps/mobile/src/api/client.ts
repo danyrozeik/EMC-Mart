@@ -1,13 +1,35 @@
 import Constants from "expo-constants";
+import * as SecureStore from "expo-secure-store";
 import type { LoginInput, RegisterCustomerInput } from "@rti/shared";
 
 const API_BASE_URL: string =
   (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined) ?? "http://localhost:3001";
 
+const TOKEN_STORE_KEY = "rti_access_token";
+
 let accessToken: string | null = null;
 
+/** In-memory only — does not touch SecureStore. Used to hydrate state after a persisted load. */
 export function setAccessToken(token: string | null) {
   accessToken = token;
+}
+
+/** Persists the token to the device's secure keychain/keystore and updates in-memory state. */
+export async function persistAccessToken(token: string): Promise<void> {
+  accessToken = token;
+  await SecureStore.setItemAsync(TOKEN_STORE_KEY, token);
+}
+
+export async function clearAccessToken(): Promise<void> {
+  accessToken = null;
+  await SecureStore.deleteItemAsync(TOKEN_STORE_KEY);
+}
+
+/** Reads a previously persisted token (if any) and hydrates in-memory state from it. */
+export async function loadPersistedAccessToken(): Promise<string | null> {
+  const token = await SecureStore.getItemAsync(TOKEN_STORE_KEY);
+  accessToken = token;
+  return token;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

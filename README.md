@@ -180,19 +180,22 @@ development and demos only. Before any real transaction can occur:
   pattern for transaction and loyalty events" from the brief is not implemented; today, loyalty earning
   happens synchronously and idempotently inside the payment request instead of via an event bus.
 - No CI pipeline (GitHub Actions, etc.) is configured yet.
-- Mobile has no login screen wired into `App.tsx` yet — `api.setAccessToken()` exists but nothing calls
-  it, so `Pay`/`Activity` screens will hit `401` until a login flow is added (see next task).
 
 Mobile QR scanning is implemented: the Pay screen (`apps/mobile/src/screens/PayScreen.tsx`) uses
 `expo-camera`'s `CameraView` to scan a QR code encoding a raw `qrPaymentIntentId`, fetches
 `GET /v1/qr/payment-intents/:id` to preview the amount, and on confirmation calls `POST /v1/payments`
 with an `expo-crypto`-generated UUID as the `Idempotency-Key`.
 
+Mobile auth is implemented: `AuthScreen` (sign-in/create-account toggle) gates the tab navigator via
+`AuthProvider`/`useAuth` (`apps/mobile/src/auth/AuthContext.tsx`). The access token is persisted with
+`expo-secure-store` (device keychain/keystore, not `AsyncStorage`, since it's a bearer credential),
+rehydrated on launch, and verified against `GET /v1/customers/me` before trusting a stored session.
+Profile → Sign out clears it.
+
 ## Next recommended implementation task
 
-Add a mobile login/register screen that calls `api.login`/`api.register` and feeds the returned
-`accessToken` into `api.setAccessToken()` (persisted via `expo-secure-store`, not `AsyncStorage`, since
-it's a bearer credential) before the tab navigator mounts — today `PayScreen`/`ActivityScreen` assume an
-authenticated session that nothing yet establishes. In parallel, replace the synchronous loyalty-earn
-call in `PaymentsService.executePayment` with an outbox row + worker, per the brief's event-pattern
-requirement, so payment completion and loyalty crediting are decoupled.
+Replace the synchronous loyalty-earn call in `PaymentsService.executePayment`
+(`apps/api/src/payments/payments.service.ts`) with an outbox row + worker, per the brief's outbox/event
+pattern requirement for transaction and loyalty events, so payment completion and loyalty crediting are
+decoupled and can be retried/replayed independently of the request/response cycle. Redis (`REDIS_URL`)
+is already configured but unused — it's the natural queue backend for the worker.

@@ -1,11 +1,14 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { APP_NAME, SUPPORT_EMAIL } from "../constants";
+import { useAuth } from "../auth/AuthContext";
 import { theme } from "../theme";
 
-const MENU = ["Security", "Language / اللغة", "Payment methods", "Notifications", "Support", "Sign out"];
+const MENU = ["Security", "Language / اللغة", "Payment methods", "Notifications", "Support"];
 
 export function ProfileScreen() {
+  const { logout } = useAuth();
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Profile</Text>
@@ -17,6 +20,9 @@ export function ProfileScreen() {
             <Text style={styles.menuText}>{item}</Text>
           </Pressable>
         ))}
+        <Pressable style={styles.menuItem} onPress={() => logout()}>
+          <Text style={[styles.menuText, styles.signOutText]}>Sign out</Text>
+        </Pressable>
       </View>
 
       <Text style={styles.support}>Need help? {SUPPORT_EMAIL}</Text>
@@ -31,5 +37,6 @@ const styles = StyleSheet.create({
   menu: { marginTop: 24 },
   menuItem: { backgroundColor: "#FFF", padding: 16, borderRadius: theme.radius.md, marginBottom: 10 },
   menuText: { color: theme.colors.text, fontWeight: "600" },
+  signOutText: { color: theme.colors.danger },
   support: { marginTop: 16, color: theme.colors.muted },
 });
