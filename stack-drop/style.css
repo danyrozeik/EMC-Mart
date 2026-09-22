@@ -1,0 +1,175 @@
+:root {
+  --bg: #0f1220;
+  --panel: #1a1e33;
+  --border: #333a5c;
+  --text: #eef0ff;
+  --accent: #7c8cff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px;
+}
+
+.wrap {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+}
+
+h1 {
+  text-align: center;
+  letter-spacing: 4px;
+  font-size: 28px;
+  margin: 0 0 16px;
+  color: var(--accent);
+}
+
+.game {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.board-wrap {
+  position: relative;
+  line-height: 0;
+}
+
+canvas {
+  background: #000;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  display: block;
+}
+
+#board {
+  width: min(300px, 70vw);
+  height: auto;
+  aspect-ratio: 1 / 2;
+}
+
+.sidebar {
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+}
+
+.panel h2 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #9aa0c8;
+}
+
+#next {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.stat {
+  font-size: 22px;
+  font-weight: bold;
+  color: var(--accent);
+}
+
+#startBtn {
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #10122a;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#startBtn:active {
+  transform: translateY(1px);
+}
+
+.controls {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+  color: #9aa0c8;
+}
+
+.controls p {
+  margin: 2px 0;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(10, 12, 24, 0.75);
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  padding: 20px;
+  line-height: 1.4;
+}
+
+.hidden {
+  display: none;
+}
+
+.touch-controls {
+  display: none;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.touch-btn {
+  padding: 14px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-btn:active {
+  background: var(--accent);
+  color: #10122a;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .touch-controls {
+    display: grid;
+  }
+}
