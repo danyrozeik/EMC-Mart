@@ -20,6 +20,11 @@
 
       <div class="sidebar">
         <div class="panel">
+          <h2>Hold</h2>
+          <canvas id="hold" width="120" height="120"></canvas>
+        </div>
+
+        <div class="panel">
           <h2>Next</h2>
           <canvas id="next" width="120" height="120"></canvas>
         </div>
@@ -27,6 +32,11 @@
         <div class="panel">
           <h2>Score</h2>
           <div id="score" class="stat">0</div>
+        </div>
+
+        <div class="panel">
+          <h2>Best</h2>
+          <div id="best" class="stat">0</div>
         </div>
 
         <div class="panel">
@@ -46,9 +56,18 @@
           <p>&uarr; rotate</p>
           <p>&darr; soft drop</p>
           <p>space hard drop</p>
-          <p>p pause</p>
+          <p>c hold &middot; p pause</p>
         </div>
       </div>
+    </div>
+
+    <div class="touch-controls">
+      <button id="tLeft" class="touch-btn" aria-label="Move left">&larr;</button>
+      <button id="tRotate" class="touch-btn" aria-label="Rotate">&#8635;</button>
+      <button id="tRight" class="touch-btn" aria-label="Move right">&rarr;</button>
+      <button id="tHold" class="touch-btn" aria-label="Hold">Hold</button>
+      <button id="tDown" class="touch-btn" aria-label="Soft drop">&darr;</button>
+      <button id="tDrop" class="touch-btn" aria-label="Hard drop">Drop</button>
     </div>
   </div>
 

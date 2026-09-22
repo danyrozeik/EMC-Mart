@@ -9,12 +9,32 @@
   const nextCanvas = document.getElementById("next");
   const nextCtx = nextCanvas.getContext("2d");
 
+  const holdCanvas = document.getElementById("hold");
+  const holdCtx = holdCanvas.getContext("2d");
+
   const scoreEl = document.getElementById("score");
+  const bestEl = document.getElementById("best");
   const linesEl = document.getElementById("lines");
   const levelEl = document.getElementById("level");
   const startBtn = document.getElementById("startBtn");
   const overlay = document.getElementById("overlay");
   const overlayText = document.getElementById("overlayText");
+
+  const BEST_KEY = "stackdrop-best-score";
+  let best = 0;
+  try {
+    best = Number(localStorage.getItem(BEST_KEY)) || 0;
+  } catch (e) {
+    // localStorage unavailable (private mode, etc.) - best stays session-only
+  }
+
+  function saveBest() {
+    try {
+      localStorage.setItem(BEST_KEY, String(best));
+    } catch (e) {
+      // ignore
+    }
+  }
 
   const COLORS = {
     I: "#5ce1e6",
@@ -82,7 +102,7 @@
     };
   }
 
-  let grid, current, next, score, lines, level, dropCounter, dropInterval;
+  let grid, current, next, held, holdUsed, score, lines, level, dropCounter, dropInterval;
   let lastTime = 0;
   let running = false;
   let paused = false;
@@ -103,12 +123,15 @@
     bag = [];
     current = makePiece(nextPieceKey());
     next = makePiece(nextPieceKey());
+    held = null;
+    holdUsed = false;
     gameOver = false;
     updateStats();
   }
 
   function updateStats() {
     scoreEl.textContent = score;
+    bestEl.textContent = best;
     linesEl.textContent = lines;
     levelEl.textContent = level;
   }
@@ -168,6 +191,7 @@
     merge();
     clearLines();
     spawnNext();
+    holdUsed = false;
   }
 
   function move(dx) {
@@ -197,6 +221,23 @@
     updateStats();
     lockPiece();
     dropCounter = 0;
+  }
+
+  function holdPiece() {
+    if (holdUsed) return;
+    holdUsed = true;
+    const heldKey = current.key;
+    if (held === null) {
+      held = heldKey;
+      spawnNext();
+    } else {
+      const swapped = held;
+      held = heldKey;
+      current = makePiece(swapped);
+      if (collides(current.cells, current.x, current.y)) {
+        endGame();
+      }
+    }
   }
 
   function rotate() {
@@ -244,6 +285,24 @@
     for (const [cx, cy] of next.cells) {
       drawCell(nextCtx, cx, cy, COLORS[next.key], nCell);
     }
+
+    holdCtx.fillStyle = "#000";
+    holdCtx.fillRect(0, 0, holdCanvas.width, holdCanvas.height);
+    if (held) {
+      const hCell = holdCanvas.width / 4;
+      const color = holdUsed ? shade(COLORS[held]) : COLORS[held];
+      for (const [cx, cy] of SHAPES[held]) {
+        drawCell(holdCtx, cx, cy, color, hCell);
+      }
+    }
+  }
+
+  function shade(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255;
+    const g = (n >> 8) & 255;
+    const b = n & 255;
+    return `rgb(${r * 0.45 | 0}, ${g * 0.45 | 0}, ${b * 0.45 | 0})`;
   }
 
   function update(time = 0) {
@@ -261,7 +320,13 @@
   function endGame() {
     gameOver = true;
     running = false;
-    showOverlay(`Game Over\nScore: ${score}\nPress Start to retry`);
+    const isNewBest = score > best;
+    if (isNewBest) {
+      best = score;
+      saveBest();
+      updateStats();
+    }
+    showOverlay(`Game Over\nScore: ${score}${isNewBest ? "\nNew best!" : ""}\nPress Start to retry`);
   }
 
   function showOverlay(text) {
@@ -330,10 +395,43 @@
         hardDrop();
         draw();
         break;
+      case "c":
+      case "C":
+      case "Shift":
+        e.preventDefault();
+        holdPiece();
+        draw();
+        break;
     }
   });
 
   startBtn.addEventListener("click", startGame);
+
+  function bindTouch(id, action) {
+    const el = document.getElementById(id);
+    el.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.cancelable) e.preventDefault();
+        if (!running || paused || gameOver) return;
+        action();
+        draw();
+      },
+      { passive: false }
+    );
+    el.addEventListener("click", () => {
+      if (!running || paused || gameOver) return;
+      action();
+      draw();
+    });
+  }
+
+  bindTouch("tLeft", () => move(-1));
+  bindTouch("tRight", () => move(1));
+  bindTouch("tRotate", rotate);
+  bindTouch("tDown", softDrop);
+  bindTouch("tDrop", hardDrop);
+  bindTouch("tHold", holdPiece);
 
   // Initial idle state
   resetState();
