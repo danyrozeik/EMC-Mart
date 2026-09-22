@@ -112,6 +112,7 @@
     font-size: 12px;
   }
   .price { font-weight: 700; color: var(--accent); }
+  .price.landed { color: var(--good); }
   .muted { color: var(--text-dim); }
   #bom-summary {
     background: var(--panel);
@@ -122,6 +123,36 @@
   #bom-summary table td.num, #bom-summary table th.num { text-align: right; }
   tfoot td { border-top: 2px solid var(--border); border-bottom: none; font-weight: 700; }
   .country-flag { color: var(--text-dim); font-size: 12px; }
+  .btn {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--accent); color: #051020; }
+  .export-buttons { display: flex; gap: 8px; }
+  #logistics-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  #logistics-panel .assumption-note {
+    color: var(--warn);
+    font-size: 12px;
+    margin: 0 0 14px;
+  }
+  .logistics-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .duty-field input { min-width: 90px; }
 </style>
 
 <h1>ESU Pad Supplier Matrix &amp; BOM Calculator</h1>
@@ -150,6 +181,25 @@
     <div class="value" id="stat-total-cost">$0.00</div>
     <div class="label">Total order cost</div>
   </div>
+  <div class="field export-buttons">
+    <label>&nbsp;</label>
+    <div class="export-buttons">
+      <button class="btn" id="export-csv">Export CSV</button>
+      <button class="btn" id="export-json">Export JSON</button>
+    </div>
+  </div>
+</div>
+
+<div id="logistics-panel">
+  <h2>Logistics Assumptions</h2>
+  <p class="assumption-note">Assumption: freight and duty default to $0.00 / 0% — enter actual freight quotes and HTS-code duty rates for your lane before relying on landed cost.</p>
+  <div class="logistics-grid">
+    <div class="field">
+      <label for="freight-per-unit">Freight / Unit (all categories)</label>
+      <input type="number" id="freight-per-unit" value="0" min="0" step="0.001">
+    </div>
+    <div id="duty-rate-fields" class="logistics-grid"></div>
+  </div>
 </div>
 
 <div id="category-tables"></div>
@@ -162,7 +212,10 @@
         <th>Category</th>
         <th>Selected Supplier</th>
         <th>Country</th>
-        <th class="num">Unit Price</th>
+        <th class="num">Base Price</th>
+        <th class="num">Duty</th>
+        <th class="num">Freight</th>
+        <th class="num">Landed Price</th>
         <th class="num">Lead Time</th>
         <th class="num">Extended Cost</th>
       </tr>
@@ -170,7 +223,7 @@
     <tbody id="bom-rows"></tbody>
     <tfoot>
       <tr>
-        <td colspan="3">Totals</td>
+        <td colspan="6">Totals</td>
         <td class="num" id="bom-total-unit"></td>
         <td class="num" id="bom-total-lead"></td>
         <td class="num" id="bom-total-extended"></td>
@@ -239,11 +292,21 @@
 
   const state = {
     qty: 10000,
-    selected: {}
+    selected: {},
+    freightPerUnit: 0,
+    dutyRates: {}
   };
 
   categories.forEach(cat => {
     state.selected[cat.id] = cat.suppliers[0].id;
+  });
+
+  const originCountries = [...new Set(
+    categories.flatMap(cat => cat.suppliers.map(s => s.country))
+  )].sort();
+
+  originCountries.forEach(country => {
+    state.dutyRates[country] = 0;
   });
 
   function getSupplier(catId, supplierId) {
@@ -258,6 +321,16 @@
     return supplier.tier1k;
   }
 
+  function dutyRateForSupplier(supplier) {
+    return state.dutyRates[supplier.country] || 0;
+  }
+
+  function landedPriceForQty(supplier, qty) {
+    const base = priceForQty(supplier, qty);
+    const dutyRate = dutyRateForSupplier(supplier);
+    return base * (1 + dutyRate / 100) + state.freightPerUnit;
+  }
+
   function scoreClass(value) {
     if (value >= 4.3) return 'good';
     if (value >= 3.5) return 'warn';
@@ -268,11 +341,30 @@
     return '$' + value.toFixed(decimals);
   }
 
+  function renderLogisticsPanel() {
+    const container = document.getElementById('duty-rate-fields');
+    container.innerHTML = originCountries.map(country => `
+      <div class="field duty-field">
+        <label for="duty-${country}">Duty % &mdash; ${country}</label>
+        <input type="number" id="duty-${country}" data-country="${country}" value="${state.dutyRates[country]}" min="0" step="0.5">
+      </div>`).join('');
+
+    container.querySelectorAll('input').forEach(input => {
+      input.addEventListener('input', e => {
+        const rate = parseFloat(e.target.value);
+        state.dutyRates[e.target.dataset.country] = Number.isFinite(rate) && rate >= 0 ? rate : 0;
+        renderCategoryTables();
+        updateBOM();
+      });
+    });
+  }
+
   function renderCategoryTables() {
     const container = document.getElementById('category-tables');
     container.innerHTML = categories.map(cat => {
       const rows = cat.suppliers.map(sup => {
-        const price = priceForQty(sup, state.qty);
+        const basePrice = priceForQty(sup, state.qty);
+        const landedPrice = landedPriceForQty(sup, state.qty);
         const isSelected = state.selected[cat.id] === sup.id;
         const isoBadge = sup.iso
           ? '<span class="badge iso-yes">ISO Certified</span>'
@@ -286,7 +378,8 @@
             <td>${sup.name}<br><span class="country-flag">${sup.country}</span></td>
             <td>${isoBadge}</td>
             <td class="muted">${sup.biocompat}</td>
-            <td class="price">${fmtCurrency(price)}</td>
+            <td class="price">${fmtCurrency(basePrice)}</td>
+            <td class="price landed">${fmtCurrency(landedPrice)}</td>
             <td>${sup.leadWeeks} wks</td>
             <td class="muted">${sup.moq}</td>
             <td class="muted">${sup.capacity}</td>
@@ -306,7 +399,8 @@
                 <th>Supplier</th>
                 <th>Certification</th>
                 <th>Biocompatibility</th>
-                <th>Unit Price (at qty)</th>
+                <th>Base Price (at qty)</th>
+                <th>Landed Price</th>
                 <th>Lead Time</th>
                 <th>MOQ</th>
                 <th>Capacity</th>
@@ -328,36 +422,123 @@
     });
   }
 
+  function buildBOMLines() {
+    return categories.map(cat => {
+      const supplier = getSupplier(cat.id, state.selected[cat.id]);
+      const basePrice = priceForQty(supplier, state.qty);
+      const dutyRate = dutyRateForSupplier(supplier);
+      const dutyAmount = basePrice * (dutyRate / 100);
+      const landedPrice = basePrice + dutyAmount + state.freightPerUnit;
+      return {
+        category: cat,
+        supplier,
+        basePrice,
+        dutyRate,
+        dutyAmount,
+        freightPerUnit: state.freightPerUnit,
+        landedPrice,
+        extended: landedPrice * state.qty
+      };
+    });
+  }
+
   function updateBOM() {
-    const rowsHtml = [];
-    let totalUnit = 0;
+    const lines = buildBOMLines();
+    let totalLanded = 0;
     let totalLead = 0;
 
-    categories.forEach(cat => {
-      const supplier = getSupplier(cat.id, state.selected[cat.id]);
-      const unitPrice = priceForQty(supplier, state.qty);
-      const extended = unitPrice * state.qty;
-      totalUnit += unitPrice;
-      totalLead = Math.max(totalLead, supplier.leadWeeks);
-
-      rowsHtml.push(`
+    const rowsHtml = lines.map(line => {
+      totalLanded += line.landedPrice;
+      totalLead = Math.max(totalLead, line.supplier.leadWeeks);
+      return `
         <tr>
-          <td>${cat.id} &mdash; ${cat.name}</td>
-          <td>${supplier.name}</td>
-          <td>${supplier.country}</td>
-          <td class="num price">${fmtCurrency(unitPrice)}</td>
-          <td class="num">${supplier.leadWeeks} wks</td>
-          <td class="num">${fmtCurrency(extended, 2)}</td>
-        </tr>`);
+          <td>${line.category.id} &mdash; ${line.category.name}</td>
+          <td>${line.supplier.name}</td>
+          <td>${line.supplier.country}</td>
+          <td class="num">${fmtCurrency(line.basePrice)}</td>
+          <td class="num">${line.dutyRate}%</td>
+          <td class="num">${fmtCurrency(line.freightPerUnit)}</td>
+          <td class="num price landed">${fmtCurrency(line.landedPrice)}</td>
+          <td class="num">${line.supplier.leadWeeks} wks</td>
+          <td class="num">${fmtCurrency(line.extended, 2)}</td>
+        </tr>`;
     });
 
     document.getElementById('bom-rows').innerHTML = rowsHtml.join('');
-    document.getElementById('bom-total-unit').textContent = fmtCurrency(totalUnit);
+    document.getElementById('bom-total-unit').textContent = fmtCurrency(totalLanded);
     document.getElementById('bom-total-lead').textContent = totalLead + ' wks';
-    document.getElementById('bom-total-extended').textContent = fmtCurrency(totalUnit * state.qty, 2);
+    document.getElementById('bom-total-extended').textContent = fmtCurrency(totalLanded * state.qty, 2);
 
-    document.getElementById('stat-unit-cost').textContent = fmtCurrency(totalUnit);
-    document.getElementById('stat-total-cost').textContent = fmtCurrency(totalUnit * state.qty, 2);
+    document.getElementById('stat-unit-cost').textContent = fmtCurrency(totalLanded);
+    document.getElementById('stat-total-cost').textContent = fmtCurrency(totalLanded * state.qty, 2);
+  }
+
+  function downloadFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportCSV() {
+    const lines = buildBOMLines();
+    const header = ['Category ID', 'Category', 'Supplier', 'Country', 'Base Price', 'Duty %', 'Freight/Unit', 'Landed Price', 'Lead Time (wks)', 'Extended Cost'];
+    const rows = lines.map(line => [
+      line.category.id,
+      line.category.name,
+      line.supplier.name,
+      line.supplier.country,
+      line.basePrice.toFixed(4),
+      line.dutyRate,
+      line.freightPerUnit.toFixed(4),
+      line.landedPrice.toFixed(4),
+      line.supplier.leadWeeks,
+      line.extended.toFixed(2)
+    ]);
+    const totalLanded = lines.reduce((sum, l) => sum + l.landedPrice, 0);
+    const totalLead = Math.max(...lines.map(l => l.supplier.leadWeeks));
+    rows.push(['', '', '', '', '', '', '', 'TOTAL', totalLanded.toFixed(4), totalLead, (totalLanded * state.qty).toFixed(2)].slice(0, header.length));
+
+    const csv = [header, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    downloadFile(`esu-pad-bom-qty${state.qty}.csv`, csv, 'text/csv');
+  }
+
+  function exportJSON() {
+    const lines = buildBOMLines();
+    const totalLanded = lines.reduce((sum, l) => sum + l.landedPrice, 0);
+    const totalLead = Math.max(...lines.map(l => l.supplier.leadWeeks));
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      orderQty: state.qty,
+      freightPerUnit: state.freightPerUnit,
+      dutyRates: state.dutyRates,
+      lineItems: lines.map(line => ({
+        categoryId: line.category.id,
+        categoryName: line.category.name,
+        supplierId: line.supplier.id,
+        supplierName: line.supplier.name,
+        country: line.supplier.country,
+        basePrice: line.basePrice,
+        dutyRatePct: line.dutyRate,
+        freightPerUnit: line.freightPerUnit,
+        landedPrice: line.landedPrice,
+        leadWeeks: line.supplier.leadWeeks,
+        extendedCost: line.extended
+      })),
+      totals: {
+        landedUnitCost: totalLanded,
+        totalOrderCost: totalLanded * state.qty,
+        maxLeadWeeks: totalLead
+      }
+    };
+    downloadFile(`esu-pad-bom-qty${state.qty}.json`, JSON.stringify(payload, null, 2), 'application/json');
   }
 
   document.getElementById('order-qty').addEventListener('input', e => {
@@ -375,6 +556,17 @@
     updateBOM();
   });
 
+  document.getElementById('freight-per-unit').addEventListener('input', e => {
+    const freight = parseFloat(e.target.value);
+    state.freightPerUnit = Number.isFinite(freight) && freight >= 0 ? freight : 0;
+    renderCategoryTables();
+    updateBOM();
+  });
+
+  document.getElementById('export-csv').addEventListener('click', exportCSV);
+  document.getElementById('export-json').addEventListener('click', exportJSON);
+
+  renderLogisticsPanel();
   renderCategoryTables();
   updateBOM();
 </script>
