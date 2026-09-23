@@ -45,7 +45,7 @@ Egypt-focused wallet, payments, commerce, and loyalty platform.
 
 | Gate | Area | Status | Do not |
 | --- | --- | --- | --- |
-| 0 | Foundation | Charter received, not approved | Treat vision, MVP, or roadmap as frozen |
+| 0 | Foundation | **Approved 23 September 2026** — vision, MVP, and roadmap as documented in `docs/claude-code-prompt.md` and `README.md`, simulation-only until Gates 2/3/4/8 clear | Reopen without a new owner decision |
 | 1 | Architecture | Draft only | Treat the design as final |
 | 2 | Financial architecture | Simulation only | Build real transfer, payment, refund, or settlement |
 | 3 | Security | Not started | Deploy without a security review |
