@@ -5,7 +5,7 @@ Owns QR payment intents, the transaction ledger, payment execution (behind the
 
 ## Owns
 
-- `Transaction`, `QrPaymentIntent`, `RefundRequest`, `IdempotencyRecord`
+- `Transaction`, `QrPaymentIntent`, `RefundRequest`, `IdempotencyRecord`, `OutboxEvent`
 
 ## Public API
 
@@ -25,9 +25,15 @@ Owns QR payment intents, the transaction ledger, payment execution (behind the
 
 - **merchants service** — verifies a merchant exists before creating a QR
   intent or payment.
-- **loyalty service** — earns RTI Points after a completed transaction and
-  reverses them on a full refund.
 - **identity service** — writes audit log entries.
+
+## Loyalty crediting (outbox, not a direct call)
+
+Payments does **not** call the loyalty service directly. `PaymentsService` writes an `OutboxEvent`
+row in the same DB transaction as the `Transaction`/`RefundRequest` change; `OutboxDispatcherService`
+(`src/outbox/`) publishes `PENDING` rows to the `rti:loyalty-events` Redis list on a timer, so a slow
+or unavailable loyalty service can never slow down or fail a payment. See the root README's "Loyalty
+crediting: transactional outbox" section.
 
 `MockPaymentProvider` is not a real payment rail — see the root README's
 "Regulatory status" section before connecting a licensed PSP adapter.

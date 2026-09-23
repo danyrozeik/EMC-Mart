@@ -29,6 +29,7 @@
     "@rti/auth-kit": "workspace:*",
     "@rti/service-client": "workspace:*",
     "@rti/shared": "workspace:*",
+    "ioredis": "^5.4.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "nestjs-pino": "^4.1.0",

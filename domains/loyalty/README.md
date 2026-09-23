@@ -13,9 +13,14 @@ Owns the append-only RTI Points ledger.
 
 ## Internal API (X-Internal-Token only)
 
-- `POST /internal/loyalty/earn` — called by the payments service after a
-  `COMPLETED` transaction. Idempotent per `transactionId`.
-- `POST /internal/loyalty/reverse` — called by the payments service on a full
-  refund.
+- `POST /internal/loyalty/earn` / `POST /internal/loyalty/reverse` — available for manual/admin use.
+  Not on the payment request path (see below).
+
+## Earning from payments (queue, not a direct call)
+
+`LoyaltyEventsConsumerService` (`src/consumer/`) blocks on the `rti:loyalty-events` Redis list that
+the payments service's transactional outbox publishes to, and calls `earnForTransaction` /
+`reverseForTransaction` as events arrive — idempotent per `transactionId`, same as a direct call. See
+the root README's "Loyalty crediting: transactional outbox" section.
 
 RTI Points are never treated as EGP — see the root `CLAUDE.md`.

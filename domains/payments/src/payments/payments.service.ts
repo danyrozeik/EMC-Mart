@@ -1,9 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { PayMerchantInput, RefundPaymentInput } from "@rti/shared";
+import type { PayMerchantInput, RefundPaymentInput, LoyaltyOutboxEvent } from "@rti/shared";
 import type { AuditClient, ServiceClient } from "@rti/service-client";
+import type { Prisma } from "../../generated/prisma-client";
 import { PrismaService } from "../prisma/prisma.service";
 import { IdempotencyService } from "../common/idempotency/idempotency.service";
-import { AUDIT_CLIENT, LOYALTY_CLIENT, MERCHANTS_CLIENT } from "../common/clients.module";
+import { AUDIT_CLIENT, MERCHANTS_CLIENT } from "../common/clients.module";
 import { PaymentOrchestrator } from "./payment-orchestrator";
 
 @Injectable()
@@ -13,7 +14,6 @@ export class PaymentsService {
     private readonly orchestrator: PaymentOrchestrator,
     private readonly idempotency: IdempotencyService,
     @Inject(MERCHANTS_CLIENT) private readonly merchants: ServiceClient,
-    @Inject(LOYALTY_CLIENT) private readonly loyalty: ServiceClient,
     @Inject(AUDIT_CLIENT) private readonly audit: AuditClient,
   ) {}
 
@@ -53,31 +53,38 @@ export class PaymentsService {
       reference: input.reference,
     });
 
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        type: "QR_PAYMENT",
-        customerId,
-        merchantId: input.merchantId,
-        amountMinor,
-        reference: input.reference,
-        idempotencyKey,
-        providerPaymentId: providerResult.providerPaymentId,
-        status: providerResult.status === "SUCCEEDED" ? "COMPLETED" : "FAILED",
-      },
-    });
-
-    if (input.intentId) {
-      await this.prisma.qrPaymentIntent.update({
-        where: { id: input.intentId },
-        data: { status: "CONSUMED", consumedByTransactionId: transaction.id },
+    const transaction = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.transaction.create({
+        data: {
+          type: "QR_PAYMENT",
+          customerId,
+          merchantId: input.merchantId,
+          amountMinor,
+          reference: input.reference,
+          idempotencyKey,
+          providerPaymentId: providerResult.providerPaymentId,
+          status: providerResult.status === "SUCCEEDED" ? "COMPLETED" : "FAILED",
+        },
       });
-    }
 
-    if (transaction.status === "COMPLETED") {
-      await this.loyalty
-        .post("/internal/loyalty/earn", { customerId, transactionId: transaction.id, amountMinor })
-        .catch(() => undefined);
-    }
+      if (input.intentId) {
+        await tx.qrPaymentIntent.update({
+          where: { id: input.intentId },
+          data: { status: "CONSUMED", consumedByTransactionId: created.id },
+        });
+      }
+
+      if (created.status === "COMPLETED") {
+        await this.writeOutboxEvent(tx, {
+          type: "PAYMENT_COMPLETED",
+          customerId,
+          transactionId: created.id,
+          amountMinor,
+        });
+      }
+
+      return created;
+    });
 
     await this.audit.record({
       actorType: "CUSTOMER",
@@ -125,34 +132,37 @@ export class PaymentsService {
       reason: input.reason,
     });
 
-    const refundRequest = await this.prisma.refundRequest.create({
-      data: {
-        transactionId,
-        merchantId: transaction.merchantId ?? "",
-        amountMinor,
-        status: providerResult.status === "SUCCEEDED" ? "COMPLETED" : "REJECTED",
-        reason: input.reason,
-        requestedBy: actorId,
-      },
-    });
-
-    if (providerResult.status === "SUCCEEDED") {
-      const isFullRefund = amountMinor === transaction.amountMinor;
-      await this.prisma.transaction.update({
-        where: { id: transactionId },
-        data: { status: isFullRefund ? "REFUNDED" : transaction.status },
+    const refundRequest = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.refundRequest.create({
+        data: {
+          transactionId,
+          merchantId: transaction.merchantId ?? "",
+          amountMinor,
+          status: providerResult.status === "SUCCEEDED" ? "COMPLETED" : "REJECTED",
+          reason: input.reason,
+          requestedBy: actorId,
+        },
       });
 
-      if (isFullRefund) {
-        await this.loyalty
-          .post("/internal/loyalty/reverse", {
-            transactionId,
+      if (providerResult.status === "SUCCEEDED") {
+        const isFullRefund = amountMinor === transaction.amountMinor;
+        await tx.transaction.update({
+          where: { id: transactionId },
+          data: { status: isFullRefund ? "REFUNDED" : transaction.status },
+        });
+
+        if (isFullRefund) {
+          await this.writeOutboxEvent(tx, {
+            type: "PAYMENT_REFUNDED",
             customerId: transaction.customerId,
+            transactionId,
             reason: "Transaction refunded",
-          })
-          .catch(() => undefined);
+          });
+        }
       }
-    }
+
+      return created;
+    });
 
     await this.audit.record({
       actorType: "ADMIN",
@@ -172,5 +182,17 @@ export class PaymentsService {
     } catch {
       throw new NotFoundException("Merchant not found");
     }
+  }
+
+  /**
+   * Writes an outbox row in the same DB transaction as the state change it
+   * describes, so the event can never be lost or emitted without the write
+   * it corresponds to actually having committed. OutboxDispatcherService
+   * publishes PENDING rows to Redis independently of this request.
+   */
+  private writeOutboxEvent(tx: Prisma.TransactionClient, event: LoyaltyOutboxEvent) {
+    return tx.outboxEvent.create({
+      data: { eventType: event.type, payload: event as unknown as Prisma.InputJsonValue },
+    });
   }
 }

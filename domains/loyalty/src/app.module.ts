@@ -8,6 +8,7 @@ import { ClientsModule } from "./common/clients.module";
 import { LoyaltyModule } from "./loyalty/loyalty.module";
 import { InternalModule } from "./internal/internal.module";
 import { AdminModule } from "./admin/admin.module";
+import { ConsumerModule } from "./consumer/consumer.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AdminModule } from "./admin/admin.module";
     LoyaltyModule,
     InternalModule,
     AdminModule,
+    ConsumerModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

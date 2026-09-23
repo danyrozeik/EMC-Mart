@@ -11,6 +11,7 @@ import { QrModule } from "./qr/qr.module";
 import { TransactionsModule } from "./transactions/transactions.module";
 import { AdminModule } from "./admin/admin.module";
 import { InternalModule } from "./internal/internal.module";
+import { OutboxModule } from "./outbox/outbox.module";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { InternalModule } from "./internal/internal.module";
     TransactionsModule,
     AdminModule,
     InternalModule,
+    OutboxModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -50,9 +50,9 @@ legacy/
 - **Payments → merchants**: before executing a payment or creating a QR intent, `payments` calls
   `GET /v1/merchants/:id` on `merchants` to confirm the merchant exists (and, for QR intents, that it
   is owned by the requesting customer).
-- **Payments → loyalty**: on a completed payment, `payments` calls `POST /internal/loyalty/earn`; on a
-  full refund, `POST /internal/loyalty/reverse`. Both calls are fire-and-forget-tolerant — the payment
-  itself is authoritative and does not roll back if the loyalty call fails.
+- **Payments → loyalty**: not a direct call. `payments` writes a transactional outbox row on a
+  completed payment or full refund; `loyalty` consumes it off a Redis queue and credits/reverses
+  points independently. See "Loyalty crediting: transactional outbox" below.
 - **Merchants → payments**: merchant-initiated refund requests are created and listed in `merchants`,
   but the underlying record lives in `payments`; `merchants` verifies ownership locally, then proxies
   to `payments`' `POST /internal/refund-requests` / `GET /internal/refund-requests`.
@@ -193,7 +193,7 @@ opaque by every other service.
    `MockPaymentProvider`, QR payment command (`POST /v1/qr/payment-intents` → `POST /v1/payments`,
    idempotent via `Idempotency-Key`), transaction history, refund requests + admin approval
 6. Loyalty: RTI Points ledger (`EARN`/`REDEEM`/`EXPIRE`/`ADJUST`), triggered by completed payments via
-   an internal service call, idempotent per transaction, reversed on full refund
+   a transactional outbox + Redis queue, idempotent per transaction, reversed on full refund
 7. Mobile: Home, Pay (live QR scanning via `expo-camera`), Shop, Activity, Profile with bottom-tab
    navigation; phone+password auth with secure token persistence
 8. Admin: customers, merchants, transactions, KYC review, risk alerts, refund approval, settlements,
@@ -265,10 +265,6 @@ local development and demos only. Before any real transaction can occur:
 - Risk alerts are manually resolvable via `identity`'s `/internal/risk-alerts` endpoint, but nothing yet
   *generates* them from the other services — a fraud/risk rules engine (velocity checks, device
   fingerprinting, anomaly detection) is not implemented.
-- Redis is configured (`REDIS_URL`) but not yet wired into a queue/outbox consumer — the "outbox/event
-  pattern for transaction and loyalty events" from the brief is not implemented; today, loyalty earning
-  happens synchronously (as a tolerant, fire-and-forget internal HTTP call) inside the payment request
-  instead of via an event bus.
 - No CI pipeline (GitHub Actions, etc.) is configured yet.
 
 Mobile QR scanning is implemented: the Pay screen (`apps/mobile/src/screens/PayScreen.tsx`) uses
@@ -282,11 +278,30 @@ Mobile auth is implemented: `AuthScreen` (sign-in/create-account toggle) gates t
 rehydrated on launch, and verified against `GET /v1/customers/me` (identity service) before trusting a
 stored session. Profile → Sign out clears it.
 
+## Loyalty crediting: transactional outbox
+
+Payment completion and loyalty crediting are decoupled via a transactional outbox, so a slow or
+unavailable loyalty service can never slow down or fail a payment:
+
+1. `PaymentsService.executePayment` / `executeRefund`
+   (`domains/payments/src/payments/payments.service.ts`) write an `OutboxEvent` row in the **same DB
+   transaction** as the `Transaction`/`RefundRequest` state change — the event can never be lost or
+   emitted without the write it describes having actually committed.
+2. `OutboxDispatcherService` (`domains/payments/src/outbox/`) polls `PENDING` rows on a timer and
+   publishes them to a Redis list (`rti:loyalty-events`), independently of the original request.
+   Publish failures are retried on the next tick; the row stays `PENDING`.
+3. `LoyaltyEventsConsumerService` (`domains/loyalty/src/consumer/`) blocks on that Redis list and
+   calls `LoyaltyService.earnForTransaction` / `reverseForTransaction` — the same idempotent methods
+   used everywhere else in the loyalty ledger.
+
+Both services need `REDIS_URL` (`docker-compose.yml` already provisions Redis). The `POST
+/internal/loyalty/earn` / `reverse` endpoints remain available for manual/admin use but are no longer
+on the payment request path.
+
 ## Next recommended implementation task
 
-Replace the synchronous loyalty-earn call in `PaymentsService.executePayment`
-(`domains/payments/src/payments/payments.service.ts`) with an outbox row + worker, per the brief's
-outbox/event pattern requirement for transaction and loyalty events, so payment completion and loyalty
-crediting are decoupled and can be retried/replayed independently of the request/response cycle, and so
-a loyalty-service outage can never affect payment completion latency. Redis (`REDIS_URL`) is already
-configured but unused — it's the natural queue backend for the worker.
+Add a dead-letter path to `LoyaltyEventsConsumerService`
+(`domains/loyalty/src/consumer/loyalty-events-consumer.service.ts`): an event that repeatedly fails to
+process (e.g. a transient DB error) is currently just logged and dropped after the handler throws.
+Push it to a `rti:loyalty-events:dead` list with the error and let an admin endpoint list/replay
+dead-lettered events, so a bad event can't silently vanish.

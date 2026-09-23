@@ -38,6 +38,12 @@ enum QrIntentStatus {
   EXPIRED
 }
 
+enum OutboxStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 /// customerId/merchantId/counterpartyCustomerId are opaque references to
 /// entities owned by the identity/merchants services — no local foreign keys.
 model Transaction {
@@ -90,6 +96,24 @@ model RefundRequest {
 
   @@index([merchantId])
   @@map("refund_requests")
+}
+
+/// Transactional outbox: written in the same DB transaction as the
+/// Transaction/RefundRequest state change it describes, then published to
+/// Redis by OutboxDispatcherService. This decouples loyalty crediting from
+/// the payment request/response cycle instead of calling loyalty inline.
+model OutboxEvent {
+  id          String       @id @default(cuid())
+  eventType   String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  lastError   String?
+  createdAt   DateTime     @default(now())
+  processedAt DateTime?
+
+  @@index([status])
+  @@map("outbox_events")
 }
 
 model IdempotencyRecord {
