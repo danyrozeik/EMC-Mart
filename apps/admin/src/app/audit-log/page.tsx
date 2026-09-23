@@ -19,7 +19,7 @@ export default function AuditLogPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    adminFetch<AuditLogEntry[]>("/v1/admin/audit-logs")
+    adminFetch<AuditLogEntry[]>("identity", "/v1/admin/audit-logs")
       .then(setEntries)
       .catch((e: Error) => setError(e.message));
   }, []);

@@ -21,7 +21,7 @@ export default function SettlementsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    adminFetch<Settlement[]>("/v1/admin/settlements")
+    adminFetch<Settlement[]>("merchants", "/v1/admin/settlements")
       .then(setSettlements)
       .catch((e: Error) => setError(e.message));
   }, []);

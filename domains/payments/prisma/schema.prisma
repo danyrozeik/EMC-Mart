@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  QR_PAYMENT
+  SEND
+  REQUEST
+  REFUND
+  BILL_PAYMENT
+}
+
+enum TransactionStatus {
+  PENDING
+  AUTHORIZED
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum QrIntentStatus {
+  OPEN
+  CONSUMED
+  EXPIRED
+}
+
+/// customerId/merchantId/counterpartyCustomerId are opaque references to
+/// entities owned by the identity/merchants services — no local foreign keys.
+model Transaction {
+  id                     String            @id @default(cuid())
+  type                   TransactionType
+  customerId             String
+  merchantId             String?
+  counterpartyCustomerId String?
+  amountMinor            Int
+  currency               String            @default("EGP")
+  status                 TransactionStatus @default(PENDING)
+  reference              String
+  idempotencyKey         String            @unique
+  providerPaymentId      String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  refundRequests RefundRequest[]
+
+  @@index([customerId])
+  @@index([merchantId])
+  @@map("transactions")
+}
+
+model QrPaymentIntent {
+  id                      String         @id @default(cuid())
+  merchantId              String
+  amountMinor             Int
+  reference               String
+  status                  QrIntentStatus @default(OPEN)
+  consumedByTransactionId String?        @unique
+  createdAt               DateTime       @default(now())
+  expiresAt               DateTime
+
+  @@index([merchantId])
+  @@map("qr_payment_intents")
+}
+
+model RefundRequest {
+  id            String       @id @default(cuid())
+  transactionId String
+  transaction   Transaction  @relation(fields: [transactionId], references: [id])
+  merchantId    String
+  amountMinor   Int
+  status        RefundStatus @default(REQUESTED)
+  reason        String?
+  requestedBy   String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([merchantId])
+  @@map("refund_requests")
+}
+
+model IdempotencyRecord {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  scope        String
+  requestHash  String
+  statusCode   Int?
+  responseBody Json?
+  createdAt    DateTime @default(now())
+
+  @@map("idempotency_records")
+}

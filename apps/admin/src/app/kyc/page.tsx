@@ -17,7 +17,7 @@ export default function KycPage() {
   const [error, setError] = useState<string | null>(null);
 
   function load() {
-    adminFetch<KycCase[]>("/v1/admin/kyc-cases")
+    adminFetch<KycCase[]>("identity", "/v1/admin/kyc-cases")
       .then(setCases)
       .catch((e: Error) => setError(e.message));
   }
@@ -26,7 +26,7 @@ export default function KycPage() {
 
   async function decide(id: string, decision: "APPROVED" | "REJECTED") {
     try {
-      await adminFetch(`/v1/admin/kyc-cases/${id}`, {
+      await adminFetch("identity", `/v1/admin/kyc-cases/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ decision }),
       });

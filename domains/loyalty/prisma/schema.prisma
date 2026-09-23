@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LoyaltyEntryType {
+  EARN
+  REDEEM
+  EXPIRE
+  ADJUST
+}
+
+/// customerId/transactionId are opaque references to entities owned by the
+/// identity/payments services — no local foreign keys.
+model LoyaltyLedgerEntry {
+  id            String           @id @default(cuid())
+  customerId    String
+  type          LoyaltyEntryType
+  points        Int
+  transactionId String?
+  reason        String?
+  createdAt     DateTime         @default(now())
+
+  @@index([customerId])
+  @@map("loyalty_ledger_entries")
+}

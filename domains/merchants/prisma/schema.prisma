@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum SettlementStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+/// ownerCustomerId is an opaque reference to a Customer owned by the identity
+/// service — no local foreign key, since Customer lives in a different database.
+model Merchant {
+  id              String    @id @default(cuid())
+  businessName    String
+  ownerCustomerId String
+  kycStatus       KycStatus @default(NOT_STARTED)
+  category        String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  offers      Offer[]
+  settlements Settlement[]
+  kycCases    KycCase[]
+
+  @@map("merchants")
+}
+
+model Offer {
+  id              String    @id @default(cuid())
+  merchantId      String
+  merchant        Merchant  @relation(fields: [merchantId], references: [id])
+  title           String
+  description     String?
+  discountPercent Int?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@map("offers")
+}
+
+model Settlement {
+  id               String           @id @default(cuid())
+  merchantId       String
+  merchant         Merchant         @relation(fields: [merchantId], references: [id])
+  periodStart      DateTime
+  periodEnd        DateTime
+  grossAmountMinor Int
+  feeAmountMinor   Int
+  netAmountMinor   Int
+  status           SettlementStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+
+  @@index([merchantId])
+  @@map("settlements")
+}
+
+/// Merchant KYC review cases. Customer KYC is owned by the identity service.
+model KycCase {
+  id         String    @id @default(cuid())
+  merchantId String
+  merchant   Merchant  @relation(fields: [merchantId], references: [id])
+  status     KycStatus @default(PENDING_REVIEW)
+  notes      String?
+  reviewedBy String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([merchantId])
+  @@map("kyc_cases")
+}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setToken } from "../../lib/api-client";
+import { serviceBaseUrl, setToken } from "../../lib/api-client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,8 +16,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_RTI_API_BASE_URL ?? "http://localhost:3001";
-      const response = await fetch(`${apiBaseUrl}/v1/admin/auth/login`, {
+      const response = await fetch(`${serviceBaseUrl("identity")}/v1/admin/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

@@ -19,7 +19,7 @@ export default function RefundsPage() {
   const [error, setError] = useState<string | null>(null);
 
   function load() {
-    adminFetch<RefundRequest[]>("/v1/admin/refund-requests")
+    adminFetch<RefundRequest[]>("payments", "/v1/admin/refund-requests")
       .then(setRequests)
       .catch((e: Error) => setError(e.message));
   }
@@ -28,7 +28,7 @@ export default function RefundsPage() {
 
   async function approve(id: string) {
     try {
-      await adminFetch(`/v1/admin/refund-requests/${id}/approve`, {
+      await adminFetch("payments", `/v1/admin/refund-requests/${id}/approve`, {
         method: "POST",
         headers: { "Idempotency-Key": `admin-refund-${id}` },
       });
@@ -40,7 +40,7 @@ export default function RefundsPage() {
 
   async function reject(id: string) {
     try {
-      await adminFetch(`/v1/admin/refund-requests/${id}/reject`, { method: "POST" });
+      await adminFetch("payments", `/v1/admin/refund-requests/${id}/reject`, { method: "POST" });
       load();
     } catch (e) {
       setError((e as Error).message);

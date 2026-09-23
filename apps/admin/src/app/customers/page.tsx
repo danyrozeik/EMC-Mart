@@ -18,7 +18,7 @@ export default function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    adminFetch<AdminCustomer[]>("/v1/admin/customers")
+    adminFetch<AdminCustomer[]>("identity", "/v1/admin/customers")
       .then(setCustomers)
       .catch((e: Error) => setError(e.message));
   }, []);

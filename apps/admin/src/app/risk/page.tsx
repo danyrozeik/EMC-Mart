@@ -17,7 +17,7 @@ export default function RiskPage() {
   const [error, setError] = useState<string | null>(null);
 
   function load() {
-    adminFetch<RiskAlert[]>("/v1/admin/risk-alerts")
+    adminFetch<RiskAlert[]>("identity", "/v1/admin/risk-alerts")
       .then(setAlerts)
       .catch((e: Error) => setError(e.message));
   }
@@ -26,7 +26,7 @@ export default function RiskPage() {
 
   async function resolve(id: string) {
     try {
-      await adminFetch(`/v1/admin/risk-alerts/${id}/resolve`, { method: "POST" });
+      await adminFetch("identity", `/v1/admin/risk-alerts/${id}/resolve`, { method: "POST" });
       load();
     } catch (e) {
       setError((e as Error).message);

@@ -1,6 +1,18 @@
 "use client";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_RTI_API_BASE_URL ?? "http://localhost:3001";
+export type ServiceName = "identity" | "merchants" | "payments" | "loyalty";
+
+const SERVICE_BASE_URLS: Record<ServiceName, string> = {
+  identity: process.env.NEXT_PUBLIC_IDENTITY_API_URL ?? "http://localhost:3001",
+  merchants: process.env.NEXT_PUBLIC_MERCHANTS_API_URL ?? "http://localhost:3002",
+  payments: process.env.NEXT_PUBLIC_PAYMENTS_API_URL ?? "http://localhost:3003",
+  loyalty: process.env.NEXT_PUBLIC_LOYALTY_API_URL ?? "http://localhost:3004",
+};
+
+export function serviceBaseUrl(service: ServiceName): string {
+  return SERVICE_BASE_URLS[service];
+}
+
 const TOKEN_KEY = "rti_admin_token";
 
 export function getToken(): string | null {
@@ -16,9 +28,13 @@ export function clearToken() {
   window.localStorage.removeItem(TOKEN_KEY);
 }
 
-export async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function adminFetch<T>(
+  service: ServiceName,
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
   const token = getToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${SERVICE_BASE_URLS[service]}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",

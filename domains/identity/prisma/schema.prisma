@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PreferredLanguage {
+  ar
+  en
+}
+
+enum RiskAlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ActorType {
+  CUSTOMER
+  MERCHANT
+  ADMIN
+  SYSTEM
+}
+
+enum AdminRole {
+  SUPPORT
+  RISK_ANALYST
+  OPERATIONS
+  SUPER_ADMIN
+}
+
+model Customer {
+  id                String            @id @default(cuid())
+  fullName          String
+  phone             String            @unique
+  email             String?           @unique
+  passwordHash      String
+  kycStatus         KycStatus         @default(NOT_STARTED)
+  preferredLanguage PreferredLanguage @default(en)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  kycCases    KycCase[]
+  riskAlerts  RiskAlert[]
+
+  @@map("customers")
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(SUPPORT)
+  createdAt    DateTime  @default(now())
+
+  @@map("admin_users")
+}
+
+/// Customer KYC review cases. Merchant KYC is owned by the merchants service.
+model KycCase {
+  id         String    @id @default(cuid())
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  status     KycStatus @default(PENDING_REVIEW)
+  notes      String?
+  reviewedBy String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([customerId])
+  @@map("kyc_cases")
+}
+
+/// customerId references a local Customer; merchantId/transactionId reference
+/// entities owned by other domain services and are plain opaque ids here.
+model RiskAlert {
+  id            String            @id @default(cuid())
+  customerId    String?
+  customer      Customer?         @relation(fields: [customerId], references: [id])
+  merchantId    String?
+  transactionId String?
+  severity      RiskAlertSeverity
+  reason        String
+  createdAt     DateTime          @default(now())
+  resolvedAt    DateTime?
+
+  @@map("risk_alerts")
+}
+
+/// Centralized audit log. Every domain service writes here via
+/// POST /internal/audit-logs instead of keeping its own log.
+model AuditLogEntry {
+  id         String    @id @default(cuid())
+  actorType  ActorType
+  actorId    String
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([targetType, targetId])
+  @@map("audit_log_entries")
+}

@@ -21,7 +21,7 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    adminFetch<AdminTransaction[]>("/v1/admin/transactions")
+    adminFetch<AdminTransaction[]>("payments", "/v1/admin/transactions")
       .then(setTransactions)
       .catch((e: Error) => setError(e.message));
   }, []);

@@ -17,7 +17,7 @@ export default function MerchantsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    adminFetch<AdminMerchant[]>("/v1/admin/merchants")
+    adminFetch<AdminMerchant[]>("merchants", "/v1/admin/merchants")
       .then(setMerchants)
       .catch((e: Error) => setError(e.message));
   }, []);
