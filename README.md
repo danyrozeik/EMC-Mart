@@ -134,6 +134,16 @@ All workspaces also typecheck/build cleanly: `pnpm --filter @rti/shared build`,
 `pnpm --filter @rti/identity build` / `@rti/merchants` / `@rti/payments` / `@rti/loyalty` (nest build
 each), `pnpm --filter @rti/admin build` (next build).
 
+## CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request against it: install,
+`prisma generate` for all four domain services, `pnpm build` (turbo, every workspace), `pnpm test`
+(turbo, every workspace), and a mobile typecheck (`tsc --noEmit`) — the same commands documented above,
+run the same way locally. It does not need a live Postgres or Redis: `prisma generate` only reads the
+schema, and the current unit test suites (payment orchestrator, idempotency, loyalty ledger, money
+utilities) don't hit a real database. Lint scripts exist per-package but aren't wired into CI yet — most
+packages don't have an ESLint config checked in, so `pnpm lint` isn't reliable across the repo yet.
+
 ## Environment variables
 
 **domains/identity/.env**, **domains/merchants/.env**, **domains/payments/.env**, **domains/loyalty/.env**
@@ -265,7 +275,6 @@ local development and demos only. Before any real transaction can occur:
 - Risk alerts are manually resolvable via `identity`'s `/internal/risk-alerts` endpoint, but nothing yet
   *generates* them from the other services — a fraud/risk rules engine (velocity checks, device
   fingerprinting, anomaly detection) is not implemented.
-- No CI pipeline (GitHub Actions, etc.) is configured yet.
 
 Mobile QR scanning is implemented: the Pay screen (`apps/mobile/src/screens/PayScreen.tsx`) uses
 `expo-camera`'s `CameraView` to scan a QR code encoding a raw `qrPaymentIntentId`, fetches
